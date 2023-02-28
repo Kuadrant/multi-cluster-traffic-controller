@@ -61,21 +61,22 @@ func init() {
 
 const (
 	//(cbrookes) This will be removed in the future when we have many tenant ns and way to map to them
-	defaultCtrlNS       = "multi-cluster-traffic-controller-system"
-	defaultCertProvider = "glbc-ca"
+	defaultCtrlNS = "multi-cluster-traffic-controller-system"
 )
 
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var WebhookPortNumber int
+	var webhookPortNumber int
+	var certProvider string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.IntVar(&WebhookPortNumber, "webhooks-port", 8082, "The port of the webhooks server. Set to 0 disables the webhooks server")
+	flag.IntVar(&webhookPortNumber, "webhooks-port", 8082, "The port of the webhooks server. Set to 0 disables the webhooks server")
+	flag.StringVar(&certProvider, "cert-provider", "glbc-ga", "The name of the certificate provider to use")
 
 	opts := zap.Options{
 		Development: true,
@@ -122,7 +123,7 @@ func main() {
 		os.Exit(1)
 	}
 	dnsService := dns.NewService(mgr.GetClient(), dns.NewSafeHostResolver(dns.NewDefaultHostResolver()), defaultCtrlNS)
-	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, defaultCertProvider)
+	certService := tls.NewService(mgr.GetClient(), defaultCtrlNS, certProvider)
 
 	if err = (&managedzone.ManagedZoneReconciler{
 		Client:      mgr.GetClient(),
@@ -158,9 +159,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if WebhookPortNumber != 0 {
+	if webhookPortNumber != 0 {
 		setupLog.Info("starting webhook server")
-		if err := mgr.Add(admission.NewWebhookServer(dnsService, certService, WebhookPortNumber)); err != nil {
+		if err := mgr.Add(admission.NewWebhookServer(dnsService, certService, webhookPortNumber)); err != nil {
 			setupLog.Error(err, "unable to set up webhook server")
 			os.Exit(1)
 		}
