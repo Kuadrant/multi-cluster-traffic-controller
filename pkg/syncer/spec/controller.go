@@ -37,21 +37,19 @@ type Controller struct {
 	upstreamClient   dynamic.Interface
 	downstreamClient dynamic.Interface
 
-	syncTargetName string
-	syncTargetKey  string
-	upstreamNS     string
-	downstreamNS   string
+	syncTargetName     string
+	upstreamNamespaces []string
+	downstreamNS       string
 }
 
-func NewSpecSyncer(syncTargetName, syncTargetKey string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
+func NewSpecSyncer(syncTargetName string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
 	c := &Controller{
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
-		upstreamClient:   upstreamClient,
-		downstreamClient: downstreamClient,
-		syncTargetName:   syncTargetName,
-		syncTargetKey:    syncTargetKey,
-		upstreamNS:       cfg.UpstreamNS,
-		downstreamNS:     cfg.DownstreamNS,
+		queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
+		upstreamClient:     upstreamClient,
+		downstreamClient:   downstreamClient,
+		syncTargetName:     syncTargetName,
+		upstreamNamespaces: cfg.UpstreamNamespaces,
+		downstreamNS:       cfg.DownstreamNS,
 	}
 
 	return c, nil
@@ -193,20 +191,20 @@ func (c *Controller) ensureSyncerFinalizer(ctx context.Context, gvr schema.Group
 	upstreamFinalizers := upstreamObj.GetFinalizers()
 	hasFinalizer := false
 	for _, finalizer := range upstreamFinalizers {
-		if finalizer == SyncerFinalizerNamePrefix+c.syncTargetKey {
+		if finalizer == SyncerFinalizerNamePrefix+c.syncTargetName {
 			hasFinalizer = true
 		}
 	}
 
-	intendedToBeRemovedFromLocation := upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetKey] != ""
+	intendedToBeRemovedFromLocation := upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetName] != ""
 
-	stillOwnedByExternalActorForLocation := upstreamObj.GetAnnotations()[SyncerFinalizerNamePrefix+c.syncTargetKey] != ""
+	stillOwnedByExternalActorForLocation := upstreamObj.GetAnnotations()[SyncerFinalizerNamePrefix+c.syncTargetName] != ""
 
 	if !hasFinalizer && (!intendedToBeRemovedFromLocation || stillOwnedByExternalActorForLocation) {
 		upstreamObjCopy := upstreamObj.DeepCopy()
 		namespace := upstreamObjCopy.GetNamespace()
 
-		upstreamFinalizers = append(upstreamFinalizers, SyncerFinalizerNamePrefix+c.syncTargetKey)
+		upstreamFinalizers = append(upstreamFinalizers, SyncerFinalizerNamePrefix+c.syncTargetName)
 		upstreamObjCopy.SetFinalizers(upstreamFinalizers)
 		if _, err := c.upstreamClient.Resource(gvr).Namespace(namespace).Update(ctx, upstreamObjCopy, metav1.UpdateOptions{}); err != nil {
 			logger.Error(err, "Failed adding finalizer on upstream resource")
@@ -224,9 +222,9 @@ func (c *Controller) applyToDownstream(ctx context.Context, gvr schema.GroupVers
 
 	downstreamObj := upstreamObj.DeepCopy()
 
-	intendedToBeRemovedFromLocation := upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetKey] != ""
+	intendedToBeRemovedFromLocation := upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetName] != ""
 
-	stillOwnedByExternalActorForLocation := upstreamObj.GetAnnotations()[SyncerFinalizerNamePrefix+c.syncTargetKey] != ""
+	stillOwnedByExternalActorForLocation := upstreamObj.GetAnnotations()[SyncerFinalizerNamePrefix+c.syncTargetName] != ""
 
 	if intendedToBeRemovedFromLocation && !stillOwnedByExternalActorForLocation {
 		var err error
@@ -258,7 +256,7 @@ func (c *Controller) applyToDownstream(ctx context.Context, gvr schema.GroupVers
 
 	// Strip cluster name annotation
 	downstreamAnnotations := downstreamObj.GetAnnotations()
-	delete(downstreamAnnotations, SyncerClusterStatusAnnotationPrefix+c.syncTargetKey)
+	delete(downstreamAnnotations, SyncerClusterStatusAnnotationPrefix+c.syncTargetName)
 
 	// If we're left with 0 annotations, nil out the map so it's not included in the patch
 	if len(downstreamAnnotations) == 0 {
@@ -308,7 +306,7 @@ func (c *Controller) EnsureUpstreamFinalizerRemoved(ctx context.Context, gvr sch
 		return nil
 	}
 
-	if upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetKey] == "" {
+	if upstreamObj.GetAnnotations()[SyncerDeletionAnnotationPrefix+c.syncTargetName] == "" {
 		// Do nothing: the object should not be deleted anymore for this location on the KCP side
 		return nil
 	}
@@ -319,14 +317,14 @@ func (c *Controller) EnsureUpstreamFinalizerRemoved(ctx context.Context, gvr sch
 	currentFinalizers := upstreamObj.GetFinalizers()
 	var desiredFinalizers []string
 	for _, finalizer := range currentFinalizers {
-		if finalizer != SyncerFinalizerNamePrefix+c.syncTargetKey {
+		if finalizer != SyncerFinalizerNamePrefix+c.syncTargetName {
 			desiredFinalizers = append(desiredFinalizers, finalizer)
 		}
 	}
 	upstreamObj.SetFinalizers(desiredFinalizers)
 	annotations := upstreamObj.GetAnnotations()
-	delete(annotations, SyncerClusterStatusAnnotationPrefix+c.syncTargetKey)
-	delete(annotations, SyncerDeletionAnnotationPrefix+c.syncTargetKey)
+	delete(annotations, SyncerClusterStatusAnnotationPrefix+c.syncTargetName)
+	delete(annotations, SyncerDeletionAnnotationPrefix+c.syncTargetName)
 	upstreamObj.SetAnnotations(annotations)
 
 	_, err = c.upstreamClient.Resource(gvr).Namespace(upstreamObj.GetNamespace()).Update(ctx, upstreamObj, metav1.UpdateOptions{})
