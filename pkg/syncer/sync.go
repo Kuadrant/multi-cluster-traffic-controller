@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,7 +24,17 @@ const (
 )
 
 type Syncer interface {
-	Handle(unstructured unstructured.Unstructured) error
+	Handle(obj unstructured.Unstructured) error
+}
+
+type MutatorConfig struct {
+	ClusterID string
+	Logger    logr.Logger
+}
+
+type Mutator interface {
+	Mutate(cfg MutatorConfig, obj *unstructured.Unstructured) error
+	GetName() string
 }
 
 type Config struct {
@@ -34,6 +45,7 @@ type Config struct {
 	UpstreamNamespaces []string
 	DownstreamNS       string
 	Syncer             Syncer
+	Mutators           []Mutator
 }
 
 type InformerEventsDecorator func(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error

@@ -40,6 +40,8 @@ type Controller struct {
 	syncTargetName     string
 	upstreamNamespaces []string
 	downstreamNS       string
+
+	mutators []syncer.Mutator
 }
 
 func NewSpecSyncer(syncTargetName string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
@@ -50,6 +52,7 @@ func NewSpecSyncer(syncTargetName string, upstreamClient dynamic.Interface, down
 		syncTargetName:     syncTargetName,
 		upstreamNamespaces: cfg.UpstreamNamespaces,
 		downstreamNS:       cfg.DownstreamNS,
+		mutators:           cfg.Mutators,
 	}
 
 	return c, nil
@@ -145,6 +148,13 @@ func (c *Controller) process(ctx context.Context, gvr schema.GroupVersionResourc
 		}
 		//TODO If the resource is namespaced, let's plan the cleanup of it's namespace.
 		return nil, nil
+	}
+
+	for _, mutator := range c.mutators {
+		err := mutator.Mutate(syncer.MutatorConfig{ClusterID: c.syncTargetName, Logger: logger}, upstreamUnstructuredObject)
+		if err != nil {
+			return nil, fmt.Errorf("error from %v mutator: %v", mutator.GetName(), err.Error())
+		}
 	}
 
 	// upsert downstream

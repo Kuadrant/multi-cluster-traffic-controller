@@ -41,6 +41,7 @@ import (
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/clusterSecret"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer"
+	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/mutator"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/spec"
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/syncer/status"
 )
@@ -197,6 +198,9 @@ func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dyn
 		NeverSyncedGVRs:    NEVER_SYNCED_GVRs,
 		UpstreamNamespaces: []string{controlPlaneNS},
 		DownstreamNS:       dataPlaneNamespace,
+		Mutators: []syncer.Mutator{
+			&mutator.JSONPatch{},
+		},
 	}
 
 	SpecSyncer, err := spec.NewSpecSyncer(clusterID, controlPlaneClient, dataPlaneClient, specSyncConfig)
