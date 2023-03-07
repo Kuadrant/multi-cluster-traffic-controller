@@ -1,0 +1,8 @@
+
+namespace: argocd
+
+# Workload cluster secrets will be appended to this list during local setup
+resources:
+  - ../cluster-secret
+
+

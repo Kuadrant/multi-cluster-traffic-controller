@@ -1,0 +1,8 @@
+{
+  "tlsClientConfig": {
+    "insecure": false,
+    "caData": "${CLUSTER_CA_DATA}",
+    "certData": "${CLUSTER_CERT_DATA}",
+    "keyData": "${CLUSTER_KEY_DATA}"
+  }
+}

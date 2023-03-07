@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: echo-app
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: mctc-control-plane
+            url: https://172.32.0.2:6443
+          - cluster: mctc-workload-1
+            url: https://172.32.0.3:6443
+  template:
+    metadata:
+      name: '{{cluster}}-echo-app'
+    spec:
+      project: default
+      source:
+        repoURL: 'https://github.com/Kuadrant/multi-cluster-traffic-controller.git'
+        targetRevision: HEAD
+        path: samples/echo-service
+      destination:
+        server: '{{url}}'
+        namespace: echo-app
+      syncPolicy:
+        automated:
+          prune: true
+        syncOptions:
+          - CreateNamespace=true

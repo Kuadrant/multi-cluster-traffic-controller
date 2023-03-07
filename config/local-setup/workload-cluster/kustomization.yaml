@@ -1,0 +1,9 @@
+
+resources:
+  - ./init
+  - ../../gateway-api
+  - ../../istio/istiod
+  - ../../kuadrant
+  - ../../webhook-setup/workload
+  - ./agent
+

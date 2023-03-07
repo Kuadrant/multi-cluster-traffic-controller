@@ -1,9 +1,5 @@
-namespace: multi-cluster-traffic-controller-system
-
-namePrefix: mctc-
 
 resources:
-- namespace.yaml
 - deployment.yaml
 - service.yaml
 - ../control/ingress.yaml

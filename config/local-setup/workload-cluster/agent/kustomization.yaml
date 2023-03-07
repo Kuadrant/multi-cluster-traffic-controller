@@ -1,0 +1,4 @@
+namespace: mctc-system
+
+resources:
+  - namespace.yaml

@@ -1,0 +1,6 @@
+namespace: argocd
+
+#ToDo Make this dynamic so it injects the workload clusters into the applicationset
+
+resources:
+  - echo-applicationset.yaml

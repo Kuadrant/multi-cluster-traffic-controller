@@ -1,0 +1,14 @@
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+secretGenerator:
+  - name: ${CLUSTER_NAME}
+    files:
+      - config
+    envs:
+      - cluster-config.env
+    options:
+      labels:
+        argocd.argoproj.io/secret-type: cluster
+

@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="${SCRIPT_DIR}/../bin"
+TMP_DIR="${SCRIPT_DIR}/../tmp"
 
 export KIND_BIN="${BIN_DIR}/kind"
 export KUSTOMIZE_BIN="${BIN_DIR}/kustomize"

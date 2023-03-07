@@ -42,9 +42,13 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: clean
-clean: ## Clean up temporary files.
+clean: clean-clusters ## Clean up temporary files.
 	-rm -rf ./bin/*
 	-rm -rf ./tmp
+
+.PHONY: clean-clusters
+clean-clusters: ## Clean up generated cluster config files.
+	-rm -rf ./config/local-setup/clusters/mctc-*
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.

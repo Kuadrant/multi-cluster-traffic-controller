@@ -1,0 +1,22 @@
+
+resources:
+  - ./init
+  - ../../gateway-api
+  - ../../cert-manager
+  - ../../argocd
+  - ./controller
+
+patchesStrategicMerge:
+  - |-
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    metadata:
+      name: mctc-cert-manager-webhook
+    $patch: delete
+  - |-
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: MutatingWebhookConfiguration
+    metadata:
+      name: mctc-cert-manager-webhook
+      namespace: cert-manager
+    $patch: delete

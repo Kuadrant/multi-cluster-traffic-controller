@@ -5,6 +5,7 @@ namePrefix: mctc-
 resources:
   - namespace.yaml
   - managed_zone.yaml
+  - ../../../webhook-setup/proxy
 
 generatorOptions:
   disableNameSuffixHash: true
@@ -12,12 +13,12 @@ generatorOptions:
 configMapGenerator:
   - name: controller-config
     envs:
-      - ../../../controller-config.env
+      - ../../../../controller-config.env
 
 secretGenerator:
   - name: aws-credentials
     envs:
-      - ../../../aws-credentials.env
+      - ../../../../aws-credentials.env
 
 replacements:
   - source:

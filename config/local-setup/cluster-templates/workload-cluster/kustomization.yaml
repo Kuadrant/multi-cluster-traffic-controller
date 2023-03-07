@@ -1,0 +1,5 @@
+
+# Control plane cluster secret will be appended to this list during local setup
+resources:
+  - ../../workload-cluster
+#  - ../../mctc-control-plane/cluster-secret

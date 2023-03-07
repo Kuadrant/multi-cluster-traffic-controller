@@ -1,0 +1,7 @@
+# Resources listed here are required to be added to the cluster before applying the main cluster config.
+# These are likely dependencies of other resources.
+
+resources:
+  - ../../../ingress-nginx
+  - ../../../istio/base
+
