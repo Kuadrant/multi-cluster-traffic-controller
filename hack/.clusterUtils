@@ -22,7 +22,7 @@ stringData:
     {
       "tlsClientConfig":
         {
-          "insecure": false,
+          "insecure": true,
           "caData": "${caData}",
           "certData": "${certData}",
           "keyData": "${keyData}"

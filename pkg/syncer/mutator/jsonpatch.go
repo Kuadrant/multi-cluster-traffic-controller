@@ -29,7 +29,6 @@ func (m *JSONPatch) Mutate(cfg syncer.MutatorConfig, obj *unstructured.Unstructu
 		return fmt.Errorf("no patch found for sync target '%v' on object: %v/%v", cfg.ClusterID, obj.GetNamespace(), obj.GetName())
 	}
 
-	cfg.Logger.Info("got patch", "string", patchString)
 	patch, err := jsonpatch.DecodePatch([]byte(patchString))
 	if err != nil {
 		return fmt.Errorf("error decoding patch: %v", err.Error())

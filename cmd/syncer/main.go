@@ -200,6 +200,7 @@ func startSpecSyncers(ctx context.Context, GVRs []string, controlPlaneClient dyn
 		DownstreamNS:       dataPlaneNamespace,
 		Mutators: []syncer.Mutator{
 			&mutator.JSONPatch{},
+			&mutator.AnnotationCleaner{},
 		},
 	}
 
@@ -231,6 +232,7 @@ func startStatusSyncers(ctx context.Context, GVRs []string, controlPlaneClient d
 		NeverSyncedGVRs:    NEVER_SYNCED_GVRs,
 		UpstreamNamespaces: []string{dataPlaneNamespace},
 		DownstreamNS:       controlPlaneNS,
+		Mutators:           []syncer.Mutator{},
 	}
 
 	statusSyncer, err := status.NewStatusSyncer(clusterID, dataPlaneClient, controlPlaneClient, statusSyncConfig)

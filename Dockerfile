@@ -20,15 +20,20 @@ COPY pkg/ pkg/
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
+FROM builder as controller_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o controller cmd/controller/main.go
+
+FROM builder as agent_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o agent cmd/agent/main.go
+
+FROM builder as syncer_builder
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o syncer cmd/syncer/main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as controller
 WORKDIR /
-COPY --from=builder /workspace/controller .
+COPY --from=controller_builder /workspace/controller .
 USER 65532:65532
 
 ENTRYPOINT ["/controller"]
@@ -37,7 +42,7 @@ ENTRYPOINT ["/controller"]
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as agent
 WORKDIR /
-COPY --from=builder /workspace/agent .
+COPY --from=agent_builder /workspace/agent .
 USER 65532:65532
 
 ENTRYPOINT ["/agent"]
@@ -46,7 +51,7 @@ ENTRYPOINT ["/agent"]
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as syncer
 WORKDIR /
-COPY --from=builder /workspace/syncer .
+COPY --from=syncer_builder /workspace/syncer .
 USER 65532:65532
 
 ENTRYPOINT ["/syncer"]
