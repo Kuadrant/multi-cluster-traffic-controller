@@ -34,6 +34,9 @@ EXTERNAL_DNS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/external-dns
 ARGOCD_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/argocd
 ISTIO_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/istio/istio-operator.yaml
 GATEWAY_API_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/gateway-api
+REDIS_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/redis
+LIMITADOR_KUSTOMIZATION_DIR=${LOCAL_SETUP_DIR}/../config/limitador
+
 WEBHOOK_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/workload
 TLS_CERT_PATH=${LOCAL_SETUP_DIR}/../config/webhook-setup/control/tls
 
@@ -127,25 +130,19 @@ deployArgoCD() {
 
 deployIstio() {
   clusterName=${1}
-
   echo "Deploying Istio to (${clusterName})"
 
+  kubectl config use-context kind-${clusterName}
   ${ISTIOCTL_BIN} operator init
 	kubectl apply -f  ${ISTIO_KUSTOMIZATION_DIR}
-
-
-	
 }
 
 installGatewayAPI() {
   clusterName=${1}
-
+  kubectl config use-context kind-${clusterName}
   echo "Installing Gateway API in ${clusterName}"
 
-  kubectl config use-context kind-${clusterName}
-
   ${KUSTOMIZE_BIN} build ${GATEWAY_API_KUSTOMIZATION_DIR} | kubectl apply -f -
-
 }
 
 deployKuadrant(){
@@ -154,6 +151,22 @@ deployKuadrant(){
 
   echo "Installing Kuadrant in ${clusterName}"
   ${KUSTOMIZE_BIN} build config/kuadrant | kubectl apply -f -
+}
+
+deployRedis(){
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+  
+  echo "Installing Redis in ${clusterName}"
+  ${KUSTOMIZE_BIN} build ${REDIS_KUSTOMIZATION_DIR} | kubectl apply -f - 
+}
+
+deployLimitador(){
+  clusterName=${1}
+  kubectl config use-context kind-${clusterName}
+
+  echo "Installing Limitador in ${clusterName}"
+  ${KUSTOMIZE_BIN} build ${LIMITADOR_KUSTOMIZATION_DIR} | kubectl apply -f -
 }
 
 deployDashboard() {
@@ -245,6 +258,9 @@ deployIngressController ${KIND_CLUSTER_CONTROL_PLANE}
 #4. Deploy cert manager
 deployCertManager ${KIND_CLUSTER_CONTROL_PLANE}
 
+#5. Deploy redis
+deployRedis ${KIND_CLUSTER_CONTROL_PLANE}
+
 #5. Deploy argo cd
 deployArgoCD ${KIND_CLUSTER_CONTROL_PLANE}
 
@@ -266,6 +282,7 @@ if [[ -n "${MCTC_WORKLOAD_CLUSTERS_COUNT}" ]]; then
     deployIngressController ${KIND_CLUSTER_WORKLOAD}-${i}
     deployMetalLB ${KIND_CLUSTER_WORKLOAD}-${i} $((${metalLBSubnetStart} + ${i} - 1))
     deployKuadrant ${KIND_CLUSTER_WORKLOAD}-${i}
+    deployLimitador ${KIND_CLUSTER_WORKLOAD}-${i}
     deployWebhookConfigs ${KIND_CLUSTER_WORKLOAD}-${i}
     deployDashboard ${KIND_CLUSTER_WORKLOAD}-${i} ${i}
     argocdAddCluster ${KIND_CLUSTER_CONTROL_PLANE} ${KIND_CLUSTER_WORKLOAD}-${i}

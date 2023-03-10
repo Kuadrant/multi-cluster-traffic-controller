@@ -12,6 +12,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 HELM ?= $(LOCALBIN)/helm
 ISTIOCTL ?= $(LOCALBIN)/istioctl
+REDIS ?= $(LOCALBIN)/redis-server
 
 
 ## Tool Versions
@@ -66,4 +67,9 @@ $(ISTIOCTL):
 	cd $(ISTIO_TMP); curl -sSL https://istio.io/downloadIstio | ISTIO_VERSION=$(ISTIOVERSION) sh -
 	cp $(ISTIO_TMP)/istio-$(ISTIOVERSION)/bin/istioctl ${ISTIOCTL}
 	-rm -rf $(TMP)	
+
+
+		
+
+	
 
