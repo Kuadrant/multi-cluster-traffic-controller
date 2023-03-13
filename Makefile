@@ -63,8 +63,13 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: lint
-lint: ## Run golangci-lint against code.
-	golangci-lint run ./...
+lint: golangci-lint ## Run golangci-lint against code.
+	GOLANGCI_LINT_CACHE=$(shell pwd)/tmp/lint $(GOLANGCI_LINT) run ./...
+
+.PHONY: vendor
+vendor: ## Run go mod against code
+	go mod tidy
+	go mod vendor
 
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
