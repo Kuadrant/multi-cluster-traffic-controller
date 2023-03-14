@@ -44,13 +44,13 @@ const (
 
 type HostService interface {
 	EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error)
-	AddEndPoints(ctx context.Context, t traffic.Interface) error
-	RemoveEndpoints(ctx context.Context, t traffic.Interface) error
+	AddEndPoints(ctx context.Context, t traffic.Interface, host string) error
+	RemoveEndPoints(ctx context.Context, t traffic.Interface) error
 }
 
 type CertificateService interface {
 	EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error
-	GetCertificateSecret(ctx context.Context, host string) (*corev1.Secret, error)
+	GetCertificateSecret(ctx context.Context, host string, namespace string) (*corev1.Secret, error)
 }
 
 type DnsService interface {
@@ -126,7 +126,7 @@ func (r *Ingress) Handle(ctx context.Context, trafficAccessor traffic.Interface)
 		}
 		// when certificate ready copy secret (need to add event handler for certs)
 		// only once certificate is ready update DNS based status of ingress
-		secret, err := r.Certificates.GetCertificateSecret(ctx, host)
+		secret, err := r.Certificates.GetCertificateSecret(ctx, host, trafficAccessor.GetNamespace())
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
@@ -149,7 +149,7 @@ func (r *Ingress) Handle(ctx context.Context, trafficAccessor traffic.Interface)
 	}
 
 	//patch DNS on control plane
-	dnsTargets, err := trafficAccessor.GetDNSTargets()
+	dnsTargets, err := trafficAccessor.GetDNSTargets(ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

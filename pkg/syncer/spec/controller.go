@@ -258,6 +258,30 @@ func (c *Controller) applyToDownstream(ctx context.Context, gvr schema.GroupVers
 	}
 
 	//TODO jsonpatch applied
+	// HARDCODED PATCHES - REMOVE THESE
+	if upstreamObj.GetKind() == "Gateway" {
+		// Patch gatewayClassName
+		downstreamObj.Object["spec"].(map[string]interface{})["gatewayClassName"] = "istio"
+
+		// Patch certificateRefs namespace
+		// listeners:
+		// - tls:
+		// 	   certificateRefs:
+		// 	   - group: ""
+		// 	     kind: Secret
+		// 	     name: test.dev.hcpapps.net
+		// 	     namespace: multi-cluster-traffic-controller-system
+		listeners := downstreamObj.Object["spec"].(map[string]interface{})["listeners"].([]interface{})
+		for _, listener := range listeners {
+			tlsConfig := listener.(map[string]interface{})["tls"]
+			if tlsConfig != nil {
+				certificateRefs := tlsConfig.(map[string]interface{})["certificateRefs"].([]interface{})
+				for _, certificateRef := range certificateRefs {
+					certificateRef.(map[string]interface{})["namespace"] = downstreamNamespace
+				}
+			}
+		}
+	}
 
 	downstreamObj.SetUID("")
 	downstreamObj.SetResourceVersion("")

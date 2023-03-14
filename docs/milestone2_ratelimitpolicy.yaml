@@ -1,0 +1,23 @@
+apiVersion: kuadrant.io/v1beta1
+kind: RateLimitPolicy
+metadata:
+  name: mctc-demo
+  namespace: mctc-demo
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: mctc-demo
+  rateLimits:
+   - rules:
+        - hosts: ["$MYAPP_HOST"]
+     configurations:
+        - actions:
+            - generic_key:
+                descriptor_key: "limited"
+                descriptor_value: "1"
+     limits:
+      - conditions:
+          - "limited == 1"
+        maxValue: 3
+        seconds: 10

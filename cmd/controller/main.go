@@ -17,12 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -141,8 +143,10 @@ func main() {
 	}
 
 	if err = (&gateway.GatewayReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Certificates: certService,
+		Host:         dnsService, // implements the required interface
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
@@ -164,6 +168,18 @@ func main() {
 			setupLog.Error(err, "unable to set up webhook server")
 			os.Exit(1)
 		}
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.ManagedZone{},
+		"spec.domainName",
+		func(obj client.Object) []string {
+			return []string{obj.(*v1alpha1.ManagedZone).Spec.DomainName}
+		},
+	); err != nil {
+		setupLog.Error(err, "unable to create index for managed zones")
+		os.Exit(1)
 	}
 
 	setupLog.Info("starting manager")

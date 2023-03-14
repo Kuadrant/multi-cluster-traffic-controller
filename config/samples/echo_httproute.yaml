@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo
+spec:
+  ports:
+    - name: http-port
+      port: 80
+      targetPort: http-port
+      protocol: TCP
+  selector:
+    app: echo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo
+  template:
+    metadata:
+      labels:
+        app: echo
+    spec:
+      containers:
+        - name: echo
+          image: docker.io/jmalloc/echo-server
+          ports:
+            - name: http-port
+              containerPort: 8080
+              protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: echo
+spec:
+  hostnames:
+  - "myapp.dev.hcpapps.net"
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: example-gateway
+    namespace: mctc-downstream
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: echo
+      port: 80
+      weight: 1
+    matches:
+    - method: GET
+      path:
+        type: PathPrefix
+        value: /
+

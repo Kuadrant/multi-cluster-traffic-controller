@@ -144,7 +144,7 @@ func (h *TrafficWebhookHandler[T]) handle(ctx context.Context, obj T) (bool, err
 		}
 		// when certificate ready copy secret (need to add event handler for certs)
 		// only once certificate is ready update DNS based status of ingress
-		secret, err := h.CertService.GetCertificateSecret(ctx, managedHostRecord.Name)
+		secret, err := h.CertService.GetCertificateSecret(ctx, managedHostRecord.Name, managedHostRecord.Namespace)
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return false, err
 		}

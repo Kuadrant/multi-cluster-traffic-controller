@@ -1,6 +1,7 @@
 package traffic
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -97,19 +98,6 @@ func (a *Ingress) HasTLS() bool {
 	return a.Spec.TLS != nil && len(a.Spec.TLS) != 0
 }
 
-func (a *Ingress) GetTLS() []TLSConfig {
-	tls := []TLSConfig{}
-
-	for _, section := range a.Spec.TLS {
-		tls = append(tls, TLSConfig{
-			Hosts:      section.Hosts,
-			SecretName: section.SecretName,
-		})
-	}
-
-	return tls
-}
-
 func (a *Ingress) AddTLS(host string, secret *corev1.Secret) {
 	for i, tls := range a.Spec.TLS {
 		if slice.ContainsString(tls.Hosts, host) {
@@ -164,7 +152,7 @@ func (a *Ingress) String() string {
 }
 
 // GetDNSTargets will return the LB hosts and or IPs from the the Ingress object associated with the cluster they came from
-func (a *Ingress) GetDNSTargets() ([]v1alpha1.Target, error) {
+func (a *Ingress) GetDNSTargets(ctx context.Context) ([]v1alpha1.Target, error) {
 	status := a.Status
 
 	dnsTargets := []v1alpha1.Target{}

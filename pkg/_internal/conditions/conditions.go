@@ -20,6 +20,15 @@ func HasCondition(existingConditions []metav1.Condition, c metav1.Condition) boo
 	return false
 }
 
+func GetConditionByType(conditions []metav1.Condition, cType string) *metav1.Condition {
+	for _, cond := range conditions {
+		if cond.Type == cType {
+			return &cond
+		}
+	}
+	return nil
+}
+
 func SetCondition(conditions []metav1.Condition, generation int64, conditionType string, status metav1.ConditionStatus, reason, message string) []metav1.Condition {
 	newCondition := metav1.Condition{
 		Type:               conditionType,

@@ -48,7 +48,7 @@ func NewService(controlClient client.Client, hostResolv HostResolver, defaultCtr
 
 func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string, error) {
 	activeDNSTargetIPs := []string{}
-	targets, err := t.GetDNSTargets()
+	targets, err := t.GetDNSTargets(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +68,9 @@ func (s *Service) resolveIPS(ctx context.Context, t traffic.Interface) ([]string
 	return activeDNSTargetIPs, nil
 }
 
+// GetDNSRecords returns all the existing DNSRecords for all the hosts in the traffic resource.
+
+// Ingress only - This is only used for traffic resources that currently expect a managed host to be generated.
 func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
 	// TODO improve this to use a label and list instead of gets
 	hosts := traffic.GetHosts()
@@ -94,7 +97,10 @@ func (s *Service) GetDNSRecords(ctx context.Context, traffic traffic.Interface) 
 	return records, nil
 }
 
-func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) error {
+// AddEndPoints adds endpoints to the DNSRecord for hosts in the traffic object.
+//
+// Ingress only - This is only used for traffic resources that currently expect a managed host to be generated.
+func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface, endpointHost string) error {
 	ips, err := s.resolveIPS(ctx, traffic)
 	if err != nil {
 		return err
@@ -151,7 +157,8 @@ func (s *Service) AddEndPoints(ctx context.Context, traffic traffic.Interface) e
 	return nil
 }
 
-func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) error {
+// Ingress only
+func (s *Service) RemoveEndPoints(ctx context.Context, t traffic.Interface) error {
 	records, err := s.GetDNSRecords(ctx, t)
 	if err != nil {
 		return err
@@ -187,6 +194,8 @@ func (s *Service) RemoveEndpoints(ctx context.Context, t traffic.Interface) erro
 }
 
 // EnsureManagedHost will ensure there is at least one managed host for the traffic object and return those host and dnsrecords
+//
+// Ingress only - This is only used for traffic resources that currently expect a managed host to be generated.
 func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([]*v1alpha1.DNSRecord, error) {
 	dnsRecords, err := s.GetDNSRecords(ctx, t)
 	if err != nil {
@@ -215,14 +224,44 @@ func (s *Service) EnsureManagedHost(ctx context.Context, t traffic.Interface) ([
 	return dnsRecords, nil
 }
 
-func (s *Service) CreateDNSRecord(ctx context.Context, hostKey string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
-	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", hostKey, managedZone.Spec.DomainName))
+// GetManagedZone returns the most suitable ManagedZone to publish the given traffic resource into.
+//
+// Currently, this just returns the first ManagedZone found in the traffic resources own namespace, or if none is found,
+// it looks for the first one listed in the default ctrl namespace.
+//
+// Ingress only - This is only used for traffic resources that currently expect a managed host to be generated.
+func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1alpha1.ManagedZone, error) {
+	var managedZones v1alpha1.ManagedZoneList
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
+		log.Log.Error(err, "unable to list managed zones in traffic resource NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS)); err != nil {
+		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
+		return nil, err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], nil
+	}
+
+	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
+}
+
+// CreateDNSRecord creates a new DNSRecord, if one does not already exist, in the given managed zone with the given subdomain.
+func (s *Service) CreateDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
 
 	dnsRecord := v1alpha1.DNSRecord{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      managedHost,
 			Namespace: managedZone.Namespace,
-			Labels:    map[string]string{labelRecordID: hostKey},
+			Labels:    map[string]string{labelRecordID: subDomain},
 		},
 		Spec: v1alpha1.DNSRecordSpec{
 			ManagedZoneRef: &v1alpha1.ManagedZoneReference{
@@ -247,6 +286,110 @@ func (s *Service) CreateDNSRecord(ctx context.Context, hostKey string, managedZo
 		}
 	}
 	return &dnsRecord, nil
+}
+
+// GetDNSRecord returns a DNSRecord, if one exists, for the given subdomain in the given managed zone.
+func (s *Service) GetDNSRecord(ctx context.Context, subDomain string, managedZone *v1alpha1.ManagedZone) (*v1alpha1.DNSRecord, error) {
+	managedHost := strings.ToLower(fmt.Sprintf("%s.%s", subDomain, managedZone.Spec.DomainName))
+
+	dnsRecord := &v1alpha1.DNSRecord{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      managedHost,
+			Namespace: managedZone.GetNamespace(),
+		},
+	}
+	if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(dnsRecord), dnsRecord); err != nil {
+		if k8serrors.IsNotFound(err) {
+			log.Log.V(10).Info("no dnsrecord found for host ", "host", dnsRecord.Name)
+		}
+		return nil, err
+	}
+	return dnsRecord, nil
+}
+
+// AddEndpoints adds endpoints to the given DNSRecord for each ip address resolvable for the given traffic resource.
+func (s *Service) AddEndpoints(ctx context.Context, traffic traffic.Interface, dnsRecord *v1alpha1.DNSRecord) error {
+	ips, err := s.resolveIPS(ctx, traffic)
+	if err != nil {
+		return err
+	}
+
+	host := dnsRecord.Name
+
+	// check if endpoint already exists in the DNSRecord
+	endpoints := []string{}
+	for _, addr := range ips {
+		endpointFound := false
+		for _, endpoint := range dnsRecord.Spec.Endpoints {
+			if endpoint.DNSName == host && endpoint.SetIdentifier == addr {
+				log.Log.V(3).Info("address already exists in record for host", "address ", addr, "host", host)
+				endpointFound = true
+				continue
+			}
+		}
+		if !endpointFound {
+			endpoints = append(endpoints, addr)
+		}
+	}
+	if len(dnsRecord.Spec.Endpoints) == 0 {
+		// they are all new endpoints
+		endpoints = ips
+	}
+	for _, ep := range endpoints {
+		endpoint := &v1alpha1.Endpoint{
+			DNSName:       host,
+			Targets:       []string{ep},
+			RecordType:    "A",
+			SetIdentifier: ep,
+			RecordTTL:     60,
+		}
+
+		dnsRecord.Spec.Endpoints = append(dnsRecord.Spec.Endpoints, endpoint)
+	}
+	totalIPs := 0
+	for _, e := range dnsRecord.Spec.Endpoints {
+		totalIPs += len(e.Targets)
+	}
+	for _, e := range dnsRecord.Spec.Endpoints {
+		e.SetProviderSpecific(aws.ProviderSpecificWeight, awsEndpointWeight(totalIPs))
+	}
+
+	return s.controlClient.Update(ctx, dnsRecord, &client.UpdateOptions{})
+}
+
+// GetManagedZoneForHost returns a ManagedZone and subDomain for the given host if one exists.
+//
+// Currently, this returns the first matching ManagedZone found in the traffic resources own namespace, or if none is found,
+// it looks for the first matching one listed in the default ctrl namespace.
+func (s *Service) GetManagedZoneForHost(ctx context.Context, host string, t traffic.Interface) (*v1alpha1.ManagedZone, string, error) {
+	hostParts := strings.SplitN(host, ".", 2)
+	if len(hostParts) < 2 {
+		return nil, "", fmt.Errorf("unable to parse host : %s on traffic resource : %s", host, t.GetName())
+	}
+	subDomain := hostParts[0]
+	parentDomain := hostParts[1]
+
+	var managedZones v1alpha1.ManagedZoneList
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace()), client.MatchingFields{"spec.domainName": parentDomain}); err != nil {
+		log.FromContext(ctx).Error(err, "unable to list managed zones in traffic resource NS")
+		return nil, "", err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], subDomain, nil
+	}
+
+	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS), client.MatchingFields{"spec.domainName": parentDomain}); err != nil {
+		log.FromContext(ctx).Error(err, "unable to list managed zones in default Ctrl NS")
+		return nil, "", err
+	}
+
+	if len(managedZones.Items) > 0 {
+		return &managedZones.Items[0], subDomain, nil
+	}
+
+	return nil, "", fmt.Errorf("no managed zone found for host : %s on traffic resource : %s", host, t.GetName())
 }
 
 func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clusterID string, remove bool) error {
@@ -286,32 +429,6 @@ func (s *Service) PatchTargets(ctx context.Context, targets, hosts []string, clu
 		}
 	}
 	return nil
-}
-
-// GetManagedZone returns the most suitable ManagedZone to publish the given traffic resource into.
-// Currently, this just returns the first ManagedZone found in the traffic resources own namespace, or if none is found,
-// it looks for the first one listed in the default ctrl namespace.
-func (s *Service) GetManagedZone(ctx context.Context, t traffic.Interface) (*v1alpha1.ManagedZone, error) {
-	var managedZones v1alpha1.ManagedZoneList
-	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(t.GetNamespace())); err != nil {
-		log.Log.Error(err, "unable to list managed zones in traffic resource NS")
-		return nil, err
-	}
-
-	if len(managedZones.Items) > 0 {
-		return &managedZones.Items[0], nil
-	}
-
-	if err := s.controlClient.List(ctx, &managedZones, client.InNamespace(s.defaultCtrlNS)); err != nil {
-		log.Log.Error(err, "unable to list managed zones in default Ctrl NS")
-		return nil, err
-	}
-
-	if len(managedZones.Items) > 0 {
-		return &managedZones.Items[0], nil
-	}
-
-	return nil, fmt.Errorf("no managed zone found for traffic resource : %s", t.GetName())
 }
 
 // awsEndpointWeight returns the weight Value for a single AWS record in a set of records where the traffic is split

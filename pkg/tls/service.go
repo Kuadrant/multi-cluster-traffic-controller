@@ -31,7 +31,7 @@ func NewService(controlClient client.Client, defaultCtrlNS, defaultIssuer string
 }
 
 func (s *Service) EnsureCertificate(ctx context.Context, host string, owner metav1.Object) error {
-	cert := s.certificate(host, s.defaultIssuer, s.defaultCtrlNS)
+	cert := s.certificate(host, s.defaultIssuer, owner.GetNamespace())
 	if err := controllerutil.SetOwnerReference(owner, cert, scheme.Scheme); err != nil {
 		return err
 	}
@@ -41,11 +41,11 @@ func (s *Service) EnsureCertificate(ctx context.Context, host string, owner meta
 	return nil
 }
 
-func (s *Service) GetCertificateSecret(ctx context.Context, host string) (*v1.Secret, error) {
+func (s *Service) GetCertificateSecret(ctx context.Context, host string, namespace string) (*v1.Secret, error) {
 	//the secret is expected to be named after the host
 	tlsSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name:      host,
-		Namespace: s.defaultCtrlNS,
+		Namespace: namespace,
 	}}
 	if err := s.controlClient.Get(ctx, client.ObjectKeyFromObject(tlsSecret), tlsSecret); err != nil {
 		return nil, err
