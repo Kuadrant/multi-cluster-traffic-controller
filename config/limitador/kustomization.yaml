@@ -1,0 +1,3 @@
+resources:
+  - limitador.yaml
+  - redis-server.yaml

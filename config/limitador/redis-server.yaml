@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redisconfig
+  namespace: kuadrant-system
+stringData:
+  URL: redis://172.32.0.2:30611
+type: Opaque
