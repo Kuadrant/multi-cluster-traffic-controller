@@ -40,3 +40,8 @@ undeploy-syncer: ## Undeploy controller from the K8s cluster specified in ~/.kub
 
 .PHONY: redeploy-syncer
 redeploy-syncer: undeploy-syncer deploy-syncer
+
+.PHONY: restart-syncer
+restart-syncer:
+	kubectl rollout restart deploy sync-agent -n mctc-system
+    

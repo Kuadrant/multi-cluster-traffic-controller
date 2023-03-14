@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/Kuadrant/multi-cluster-traffic-controller/pkg/_internal/metadata"
@@ -22,17 +24,28 @@ const (
 )
 
 type Syncer interface {
-	Handle(unstructured unstructured.Unstructured) error
+	Handle(obj unstructured.Unstructured) error
+}
+
+type MutatorConfig struct {
+	ClusterID string
+	Logger    logr.Logger
+}
+
+type Mutator interface {
+	Mutate(cfg MutatorConfig, obj *unstructured.Unstructured) error
+	GetName() string
 }
 
 type Config struct {
-	ClusterID       string
-	GVRs            []string
-	InformerFactory dynamicinformer.DynamicSharedInformerFactory
-	NeverSyncedGVRs []string
-	UpstreamNS      string
-	DownstreamNS    string
-	Syncer          Syncer
+	ClusterID          string
+	GVRs               []string
+	InformerFactory    dynamicinformer.DynamicSharedInformerFactory
+	NeverSyncedGVRs    []string
+	UpstreamNamespaces []string
+	DownstreamNS       string
+	Syncer             Syncer
+	Mutators           []Mutator
 }
 
 type InformerEventsDecorator func(cfg Config, informer informers.GenericInformer, gvr *schema.GroupVersionResource, c SyncController) error
@@ -88,7 +101,7 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 			if err != nil {
 				return
 			}
-			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
@@ -107,7 +120,7 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 			if err != nil {
 				return
 			}
-			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)
@@ -125,7 +138,7 @@ func InformerForGVR(cfg Config, informer informers.GenericInformer, gvr *schema.
 			if err != nil {
 				return
 			}
-			if metaAccessor.GetNamespace() != cfg.UpstreamNS {
+			if !slices.Contains(cfg.UpstreamNamespaces, metaAccessor.GetNamespace()) {
 				return
 			}
 			value := metadata.GetAnnotation(metaAccessor, MCTC_SYNC_ANNOTATION_PREFIX+cfg.ClusterID)

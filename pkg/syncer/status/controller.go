@@ -23,10 +23,7 @@ import (
 
 const (
 	controllerName                      = "mctc-status-syncing-controller"
-	SyncerFinalizerNamePrefix           = "mctc-status-syncer-finalizer-"
-	SyncerDeletionAnnotationPrefix      = "mctc-status-syncer-deletion-timestamp-"
 	SyncerClusterStatusAnnotationPrefix = "mctc-status-syncer-status-"
-	syncerApplyManager                  = "syncer"
 	NUM_THREADS                         = 8
 )
 
@@ -36,22 +33,20 @@ type Controller struct {
 	upstreamClient   dynamic.Interface
 	downstreamClient dynamic.Interface
 
-	upstreamNS   string
-	downstreamNS string
+	upstreamNamespaces []string
+	downstreamNS       string
 
 	syncTargetName string
-	syncTargetKey  string
 }
 
-func NewStatusSyncer(syncTargetName, syncTargetKey string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
+func NewStatusSyncer(syncTargetName string, upstreamClient dynamic.Interface, downstreamClient dynamic.Interface, cfg syncer.Config) (*Controller, error) {
 	c := &Controller{
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
-		upstreamClient:   upstreamClient,
-		downstreamClient: downstreamClient,
-		syncTargetName:   syncTargetName,
-		syncTargetKey:    syncTargetKey,
-		upstreamNS:       cfg.UpstreamNS,
-		downstreamNS:     cfg.DownstreamNS,
+		queue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), controllerName),
+		upstreamClient:     upstreamClient,
+		downstreamClient:   downstreamClient,
+		syncTargetName:     syncTargetName,
+		upstreamNamespaces: cfg.UpstreamNamespaces,
+		downstreamNS:       cfg.DownstreamNS,
 	}
 
 	return c, nil
@@ -175,7 +170,7 @@ func (c *Controller) updateStatus(ctx context.Context, gvr schema.GroupVersionRe
 	if newDownstreamAnnotations == nil {
 		newDownstreamAnnotations = make(map[string]string)
 	}
-	newDownstreamAnnotations[SyncerClusterStatusAnnotationPrefix+c.syncTargetKey] = string(statusAnnotationValue)
+	newDownstreamAnnotations[SyncerClusterStatusAnnotationPrefix+c.syncTargetName] = string(statusAnnotationValue)
 	newDownstream.SetAnnotations(newDownstreamAnnotations)
 
 	if reflect.DeepEqual(existingObj, newDownstream) {
