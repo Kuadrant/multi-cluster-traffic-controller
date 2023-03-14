@@ -41,3 +41,14 @@ func Find[T any](slice []T, predicate func(T) bool) (element T, ok bool) {
 
 	return
 }
+
+func Filter[T any](slice []T, predicate func(T) bool) []T {
+	result := []T{}
+	for _, elem := range slice {
+		if predicate(elem) {
+			result = append(result, elem)
+		}
+	}
+
+	return result
+}

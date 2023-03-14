@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
@@ -354,8 +355,15 @@ func selectClusters(gateway gatewayv1beta1.Gateway) []string {
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1beta1.Gateway{}).
+		Watches(&source.Kind{
+			Type: &corev1.Secret{},
+		}, &ClusterEventHandler{client: r.Client}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			gateway := object.(*gatewayv1beta1.Gateway)
+			gateway, ok := object.(*gatewayv1beta1.Gateway)
+			if !ok {
+				return true
+			}
+
 			return slice.ContainsString(getSupportedClasses(), string(gateway.Spec.GatewayClassName))
 		})).
 		Complete(r)
